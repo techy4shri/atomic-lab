@@ -3,10 +3,27 @@ import { Species, SPECIES, mix } from './species';
 export class Bonds {
   edges = new Set<string>(); degree: Uint16Array;
   constructor(public n:number){ this.degree=new Uint16Array(n); }
-  has(i:number,j:number){ if(i>j)[i,j]=[j,i]; return this.edges.has(`${i},${j}`); }
-  add(i:number,j:number){ if(i>j)[i,j]=[j,i]; if(this.edges.has(`${i},${j}`)) return false; this.edges.add(`${i},${j}`); this.degree[i]++; this.degree[j]++; return true; }
-  remove(i:number,j:number){ if(i>j)[i,j]=[j,i]; if(this.edges.delete(`${i},${j}`)){ this.degree[i]--; this.degree[j]--; } }
-  forEach(fn:(i:number,j:number)=>void){ for(const k of this.edges){ const [a,b]=k.split(',').map(Number); fn(a,b);} }
+  has(i:number,j:number){ if(i>j)[i,j]=[j,i]; 
+    return this.edges.has(`${i},${j}`); 
+  }
+  add(i:number,j:number){ if(i>j)[i,j]=[j,i]; 
+    if(this.edges.has(`${i},${j}`)) return false; 
+    this.edges.add(`${i},${j}`); 
+    this.degree[i]++; 
+    this.degree[j]++; 
+    return true; 
+  }
+  remove(i:number,j:number){ 
+    if(i>j)[i,j]=[j,i]; 
+    if(this.edges.delete(`${i},${j}`)){ 
+      this.degree[i]--; this.degree[j]--; 
+    } 
+  }
+  forEach(fn:(i:number,j:number)=>void){ 
+    for(const k of this.edges){ 
+      const [a,b]=k.split(',').map(Number); fn(a,b);
+    } 
+  }
   clear(){ this.edges.clear(); this.degree.fill(0); }
 }
 export function canFormBond(bonds:Bonds, species:Uint8Array, i:number,j:number){ 

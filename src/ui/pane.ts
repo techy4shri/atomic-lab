@@ -7,7 +7,7 @@ export interface UIParams {
   spawnSpecies: Species; spawnCount:number;
 }
 export function createPane(params: UIParams, actions: { onReset:()=>void; onSpawn:()=>void; onToggleBonds:(v:boolean)=>void; onUiScale:(s:number)=>void; }) {
-  const pane = new Pane({ title: 'Atomic Lab Pro — Fast' });
+  const pane = new Pane({ title: 'Atomic Lab Pro' });
   const sim = pane.addFolder({ title:'Simulation' });
   sim.addBinding(params,'n',{min:100,max:6000,step:50});
   sim.addBinding(params,'dt',{min:0.0005,max:0.01,step:0.0005});

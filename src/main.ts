@@ -14,7 +14,7 @@ const canvas = document.getElementById('app') as HTMLCanvasElement;
 const hud = document.getElementById('hud') as HTMLDivElement;
 const scene = createScene();
 const params: UIParams = {
-  n: 300, dt: 0.003, substeps: 1,
+  n: 10, dt: 0.003, substeps: 1,
   box: 8, cutoff: 2.2, skin: 0.6,
   temperature: 1.0, restitution: 0.9, enableLJ: true,
   bondK: 12.0, enableFormation: true,
@@ -32,10 +32,17 @@ window.addEventListener('resize', () => {
 });
 
 let state = initState(params.n, params.box, params.temperature);
-let species = new Uint8Array(params.n); species.fill(Species.H);
+let species = new Uint8Array(params.n); 
+
+// Initialize with exactly 2 atoms of each element for demonstration
+const elementTypes = [Species.H, Species.O, Species.C, Species.Na, Species.Cl];
+for (let i = 0; i < params.n; i++) {
+  species[i] = elementTypes[i % elementTypes.length];
+}
 
 let atoms = new AtomMesh(params.n, species);
 scene.add(atoms.mesh);
+scene.add(atoms.glowMesh); // Add the glow effect
 const bonds = new Bonds(params.n);
 const bondLines = new BondLines(6000);
 scene.add(bondLines.line);
@@ -58,9 +65,19 @@ const pane = createPane(params, {
 
 function reset() {
   state = initState(params.n, params.box, params.temperature);
-  species = new Uint8Array(params.n); species.fill(Species.H);
+  species = new Uint8Array(params.n);
+  
+  // Re-initialize with 2 atoms of each element
+  const elementTypes = [Species.H, Species.O, Species.C, Species.Na, Species.Cl];
+  for (let i = 0; i < params.n; i++) {
+    species[i] = elementTypes[i % elementTypes.length];
+  }
+  
   atoms.mesh.parent?.remove(atoms.mesh);
-  atoms = new AtomMesh(params.n, species); scene.add(atoms.mesh);
+  atoms.glowMesh.parent?.remove(atoms.glowMesh);
+  atoms = new AtomMesh(params.n, species); 
+  scene.add(atoms.mesh);
+  scene.add(atoms.glowMesh);
   bonds.clear();
   grid = createGrid(params.n, params.box, params.cutoff + params.skin, params.skin);
   buildGrid(grid, state.pos);
@@ -81,7 +98,11 @@ function spawn() {
   }
   state={pos:newPos,vel:newVel,acc:newAcc};
   const sp2=new Uint8Array(newN); sp2.set(species); for(let i=oldN;i<newN;i++) sp2[i]=params.spawnSpecies; species=sp2;
-  atoms.mesh.parent?.remove(atoms.mesh); atoms=new AtomMesh(newN, species); scene.add(atoms.mesh);
+  atoms.mesh.parent?.remove(atoms.mesh);
+  atoms.glowMesh.parent?.remove(atoms.glowMesh);
+  atoms = new AtomMesh(newN, species); 
+  scene.add(atoms.mesh);
+  scene.add(atoms.glowMesh);
   const b2 = new Bonds(newN); (bonds as any).edges.forEach((k:string)=>{ const [a,b]=k.split(',').map(Number); if(a<newN && b<newN) b2.add(a,b); });
   (bonds as any).edges = (b2 as any).edges; bonds.degree = b2.degree;
   grid = createGrid(newN, params.box, params.cutoff + params.skin, params.skin); buildGrid(grid, state.pos);
@@ -99,54 +120,127 @@ function countMolecules(){
   return { h2o, co2, nacl };
 }
 
-// Orbit control (minimal)
-let dragging=false, lx=0, ly=0;
-canvas.addEventListener('mousedown', e=>{ dragging=true; lx=e.clientX; ly=e.clientY; });
-window.addEventListener('mouseup', ()=> dragging=false);
-window.addEventListener('mousemove', e=>{ if(!dragging) return; const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
-  const rot=new THREE.Euler(-dy*0.005, -dx*0.005, 0, 'YXZ'); camera.position.applyEuler(rot); camera.lookAt(0,0,0);
+// Enhanced camera controls with zoom
+let dragging = false, lx = 0, ly = 0;
+let cameraDistance = params.box * 2; // Initial camera distance
+const minDistance = params.box * 0.5;
+const maxDistance = params.box * 5;
+
+function updateCameraPosition() {
+  const spherical = new THREE.Spherical();
+  spherical.setFromVector3(camera.position);
+  spherical.radius = cameraDistance;
+  camera.position.setFromSpherical(spherical);
+  camera.lookAt(0, 0, 0);
+}
+
+canvas.addEventListener('mousedown', e => { 
+  dragging = true; 
+  lx = e.clientX; 
+  ly = e.clientY; 
+});
+
+window.addEventListener('mouseup', () => dragging = false);
+
+window.addEventListener('mousemove', e => { 
+  if (!dragging) return; 
+  const dx = e.clientX - lx, dy = e.clientY - ly; 
+  lx = e.clientX; 
+  ly = e.clientY;
+  
+  const rot = new THREE.Euler(-dy * 0.005, -dx * 0.005, 0, 'YXZ'); 
+  camera.position.applyEuler(rot); 
+  camera.lookAt(0, 0, 0);
+});
+
+// Add zoom controls with mouse wheel
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const zoomSpeed = 0.1;
+  cameraDistance += e.deltaY * zoomSpeed * 0.01;
+  cameraDistance = Math.max(minDistance, Math.min(maxDistance, cameraDistance));
+  updateCameraPosition();
+});
+
+// Add keyboard controls for zoom
+window.addEventListener('keydown', (e) => {
+  const zoomSpeed = 0.2;
+  switch(e.key) {
+    case '+':
+    case '=':
+      cameraDistance -= zoomSpeed;
+      cameraDistance = Math.max(minDistance, cameraDistance);
+      updateCameraPosition();
+      break;
+    case '-':
+    case '_':
+      cameraDistance += zoomSpeed;
+      cameraDistance = Math.min(maxDistance, cameraDistance);
+      updateCameraPosition();
+      break;
+  }
 });
 
 // Loop with throttles and frame rate control
-let frames=0, fps=0, lastHUD=performance.now();
+let frames = 0, fps = 0, lastHUD = performance.now();
 let lastFrameTime = 0;
 const targetFPS = 60;
 const frameInterval = 1000 / targetFPS;
+let performanceMode = false; // Toggle for extreme performance mode
 
-function animate(currentTime: number = performance.now()){
+function animate(currentTime: number = performance.now()) {
   // Frame rate limiting
   if (currentTime - lastFrameTime < frameInterval) {
     requestAnimationFrame(animate);
     return;
   }
   
-  // Adaptive substeps based on performance
+  // Adaptive performance mode
   const deltaTime = currentTime - lastFrameTime;
-  const adaptiveSubsteps = deltaTime > 33 ? 1 : params.substeps; // Reduce substeps if frame time > 33ms
+  if (deltaTime > 50) performanceMode = true;
+  else if (deltaTime < 25) performanceMode = false;
   
-  // Skip force calculations on every other frame if performance is poor
-  const skipForces = deltaTime > 50 && frames % 2 === 0;
+  // Adaptive substeps based on performance
+  const adaptiveSubsteps = performanceMode ? 1 : (deltaTime > 33 ? 1 : params.substeps);
   
-  for (let s=0;s<adaptiveSubsteps;s++){
+  // Skip expensive operations in performance mode
+  const skipForces = performanceMode && frames % 2 === 0;
+  const skipBonds = performanceMode && frames % 4 !== 0;
+  
+  for (let s = 0; s < adaptiveSubsteps; s++) {
     stepPositions(state, params.dt);
     confineToBox(state, params.box, params.restitution);
     if (needRebuild(grid, state.pos)) buildGrid(grid, state.pos);
     if (!skipForces) {
       accumulateForcesWithNeighbors(state, grid, species, params.cutoff, bonds, params.enableLJ, params.enableFormation);
       applyBondForces(state, bonds, species, params.bondK);
-      updateBonds(state, bonds, species);
+      if (!skipBonds) updateBonds(state, bonds, species);
     }
     stepVelocities(state, params.dt);
   }
-  atoms.updateFromArray(state.pos, species, params.visualScale);
-  // Update bond lines less frequently for better performance
-  if (params.showBonds && frames % 3 === 0) bondLines.updateFromBonds(bonds, state.pos);
+  
+  // Update visuals - reduce frequency in performance mode
+  if (!performanceMode || frames % 2 === 0) {
+    atoms.updateFromArray(state.pos, species, params.visualScale, state.vel);
+  }
+  
+  // Update bond lines even less frequently
+  if (params.showBonds && frames % (performanceMode ? 6 : 3) === 0) {
+    bondLines.updateFromBonds(bonds, state.pos);
+  }
+  
   renderer.render(scene, camera);
 
-  frames++; const now=performance.now();
-  if (now-lastHUD>500){ fps=Math.round(frames*1000/(now-lastHUD)); frames=0; lastHUD=now;
-    const {h2o,co2,nacl} = countMolecules();
-    hud.innerHTML = `Atoms: ${params.n} &nbsp; FPS: ${fps}<br/>Bonds: ${Array.from((bonds as any).edges).length}<br/>H₂O: ${h2o} &nbsp; CO₂: ${co2} &nbsp; NaCl: ${nacl}`;
+  frames++; 
+  const now = performance.now();
+  if (now - lastHUD > 500) { 
+    fps = Math.round(frames * 1000 / (now - lastHUD)); 
+    frames = 0; 
+    lastHUD = now;
+    const { h2o, co2, nacl } = countMolecules();
+    const modeText = performanceMode ? ' (Performance Mode)' : '';
+    const zoomLevel = ((maxDistance - cameraDistance) / (maxDistance - minDistance) * 100).toFixed(0);
+    hud.innerHTML = `Atoms: ${params.n} | FPS: ${fps}${modeText}<br/>Zoom: ${zoomLevel}% | Bonds: ${Array.from((bonds as any).edges).length}<br/>H₂O: ${h2o} | CO₂: ${co2} | NaCl: ${nacl}`;
   }
   
   lastFrameTime = currentTime;
