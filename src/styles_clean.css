@@ -51,10 +51,10 @@ body::before {
 #stats-pane {
     position: absolute;
     top: 16px;
-    left: 16px; /* Position on the far left */
+    right: 380px; /* Position to the left of the main pane */
     width: 300px;
     z-index: 10;
-    transform-origin: top left;
+    transform-origin: top right;
     transform: scale(1.0);
     filter: drop-shadow(0 0 20px rgba(255, 0, 255, 0.3));
 }
@@ -86,7 +86,7 @@ body::before {
 
 .controls-help { 
     position: absolute; 
-    top: 350px; /* Position below the stats pane */
+    top: 16px; 
     left: 16px; 
     font-size: 12px; 
     opacity: 0.9; 

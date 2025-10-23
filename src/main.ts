@@ -8,7 +8,7 @@ import { createGrid, buildGrid, needRebuild } from './sim/cpu/neighbors';
 import { accumulateForcesWithNeighbors } from './sim/cpu/lj_neighbor';
 import { Species } from './sim/cpu/chem/species';
 import { Bonds, applyBondForces, updateBonds } from './sim/cpu/chem/bonds';
-import { createPane, UIParams } from './ui/pane';
+import { createPane, createStatsPane, UIParams, StatsData } from './ui/pane';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const hud = document.getElementById('hud') as HTMLDivElement;
@@ -40,15 +40,33 @@ for (let i = 0; i < params.n; i++) {
   species[i] = elementTypes[i % elementTypes.length];
 }
 
+console.log('Initial species distribution:', Array.from(species));
+console.log('Species enum values:', Species);
+
 let atoms = new AtomMesh(params.n, species);
-scene.add(atoms.mesh);
-scene.add(atoms.glowMesh); // Add the glow effect
+scene.add(atoms.glowMesh); // Add glow first (render behind)
+scene.add(atoms.mesh);     // Add main mesh second (render in front)
 const bonds = new Bonds(params.n);
 const bondLines = new BondLines(6000);
 scene.add(bondLines.line);
 
 let grid = createGrid(params.n, params.box, params.cutoff + params.skin, params.skin);
 buildGrid(grid, state.pos);
+
+// Create stats data object
+const statsData: StatsData = {
+  fps: 0,
+  atomCount: params.n,
+  bondCount: 0,
+  h2o: 0,
+  co2: 0,
+  nacl: 0,
+  zoomLevel: 50,
+  performanceMode: false,
+  frameTime: 16.7,
+  temperature: params.temperature,
+  totalEnergy: 0
+};
 
 const pane = createPane(params, {
   onReset: reset,
@@ -76,8 +94,8 @@ function reset() {
   atoms.mesh.parent?.remove(atoms.mesh);
   atoms.glowMesh.parent?.remove(atoms.glowMesh);
   atoms = new AtomMesh(params.n, species); 
-  scene.add(atoms.mesh);
-  scene.add(atoms.glowMesh);
+  scene.add(atoms.glowMesh); // Add glow first
+  scene.add(atoms.mesh);     // Add main mesh second
   bonds.clear();
   grid = createGrid(params.n, params.box, params.cutoff + params.skin, params.skin);
   buildGrid(grid, state.pos);
@@ -101,8 +119,8 @@ function spawn() {
   atoms.mesh.parent?.remove(atoms.mesh);
   atoms.glowMesh.parent?.remove(atoms.glowMesh);
   atoms = new AtomMesh(newN, species); 
-  scene.add(atoms.mesh);
-  scene.add(atoms.glowMesh);
+  scene.add(atoms.glowMesh); // Add glow first
+  scene.add(atoms.mesh);     // Add main mesh second
   const b2 = new Bonds(newN); (bonds as any).edges.forEach((k:string)=>{ const [a,b]=k.split(',').map(Number); if(a<newN && b<newN) b2.add(a,b); });
   (bonds as any).edges = (b2 as any).edges; bonds.degree = b2.degree;
   grid = createGrid(newN, params.box, params.cutoff + params.skin, params.skin); buildGrid(grid, state.pos);
@@ -119,6 +137,26 @@ function countMolecules(){
   });
   return { h2o, co2, nacl };
 }
+
+function calculateTotalEnergy(state: any, species: Uint8Array): number {
+  // Calculate kinetic energy from velocities
+  let kineticEnergy = 0;
+  const { vel } = state;
+  const n = vel.length / 3;
+  
+  for (let i = 0; i < n; i++) {
+    const ix = 3 * i;
+    const vx = vel[ix], vy = vel[ix + 1], vz = vel[ix + 2];
+    kineticEnergy += 0.5 * (vx * vx + vy * vy + vz * vz); // Assume unit mass
+  }
+  
+  return kineticEnergy;
+}
+
+// Create stats pane
+const statsPane = createStatsPane(statsData);
+// Attach stats pane to the HTML element
+document.getElementById('stats-pane')!.appendChild(statsPane.element);
 
 // Enhanced camera controls with zoom
 let dragging = false, lx = 0, ly = 0;
@@ -239,8 +277,23 @@ function animate(currentTime: number = performance.now()) {
     lastHUD = now;
     const { h2o, co2, nacl } = countMolecules();
     const modeText = performanceMode ? ' (Performance Mode)' : '';
-    const zoomLevel = ((maxDistance - cameraDistance) / (maxDistance - minDistance) * 100).toFixed(0);
-    hud.innerHTML = `Atoms: ${params.n} | FPS: ${fps}${modeText}<br/>Zoom: ${zoomLevel}% | Bonds: ${Array.from((bonds as any).edges).length}<br/>H₂O: ${h2o} | CO₂: ${co2} | NaCl: ${nacl}`;
+    const zoomLevel = ((maxDistance - cameraDistance) / (maxDistance - minDistance) * 100);
+    
+    // Update stats data for the monitoring pane
+    statsData.fps = fps;
+    statsData.atomCount = params.n;
+    statsData.bondCount = Array.from((bonds as any).edges).length;
+    statsData.h2o = h2o;
+    statsData.co2 = co2;
+    statsData.nacl = nacl;
+    statsData.zoomLevel = zoomLevel;
+    statsData.performanceMode = performanceMode;
+    statsData.frameTime = deltaTime;
+    statsData.temperature = params.temperature;
+    statsData.totalEnergy = calculateTotalEnergy(state, species);
+    
+    // Update HUD display
+    hud.innerHTML = `Atoms: ${params.n} | FPS: ${fps}${modeText}<br/>Zoom: ${zoomLevel.toFixed(0)}% | Bonds: ${statsData.bondCount}<br/>H₂O: ${h2o} | CO₂: ${co2} | NaCl: ${nacl}`;
   }
   
   lastFrameTime = currentTime;

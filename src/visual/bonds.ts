@@ -10,13 +10,12 @@ export class BondLines {
     this.geom.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
     this.geom.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
     
-    // Sci-fi glowing bond material - more subtle
+    // Much thicker, more visible bonds
     const mat = new THREE.LineBasicMaterial({ 
       vertexColors: true,
       transparent: true, 
-      opacity: 0.4, // More subtle
-      blending: THREE.NormalBlending, // Less aggressive blending
-      linewidth: 1
+      opacity: 0.9,
+      linewidth: 5 // Much thicker lines
     });
     this.line = new THREE.LineSegments(this.geom, mat);
   }
@@ -33,11 +32,11 @@ export class BondLines {
       this.positions[idx*3+0]=pos[ia];   this.positions[idx*3+1]=pos[ia+1];   this.positions[idx*3+2]=pos[ia+2];
       this.positions[(idx+1)*3+0]=pos[jb]; this.positions[(idx+1)*3+1]=pos[jb+1]; this.positions[(idx+1)*3+2]=pos[jb+2];
       
-      // Subtle colored bonds based on element types
-      const hue1 = (i * 0.3) % 1;
-      const hue2 = (j * 0.3) % 1;
-      const color1 = new THREE.Color().setHSL(hue1, 0.7, 0.5);
-      const color2 = new THREE.Color().setHSL(hue2, 0.7, 0.5);
+      // Bright, clearly visible bond colors
+      const hue1 = (i * 0.2) % 1;
+      const hue2 = (j * 0.2) % 1;
+      const color1 = new THREE.Color().setHSL(hue1, 1.0, 0.8); // Brighter colors
+      const color2 = new THREE.Color().setHSL(hue2, 1.0, 0.8);
       
       this.colors[idx*3+0] = color1.r; this.colors[idx*3+1] = color1.g; this.colors[idx*3+2] = color1.b;
       this.colors[(idx+1)*3+0] = color2.r; this.colors[(idx+1)*3+1] = color2.g; this.colors[(idx+1)*3+2] = color2.b;

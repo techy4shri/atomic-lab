@@ -5,109 +5,103 @@ export class AtomMesh {
   mesh: THREE.InstancedMesh;
   glowMesh: THREE.InstancedMesh;
   dummy = new THREE.Object3D();
-  colors: Float32Array;
-  glowColors: Float32Array;
   
   constructor(public count: number, species: Uint8Array) {
-    // Main atom mesh - bright and solid
-    const geom = new THREE.SphereGeometry(0.5, 12, 8);
+    console.log('=== CREATING ATOM MESH ===');
+    console.log('Creating AtomMesh with species:', Array.from(species));
+    
+    // Main atom mesh - Enhanced material for better sci-fi look
+    const geom = new THREE.SphereGeometry(0.5, 16, 12);
     const mat = new THREE.MeshPhongMaterial({ 
-      shininess: 100,
-      transparent: false,
       vertexColors: true,
-      emissive: new THREE.Color(0x000000),
-      specular: new THREE.Color(0x444444)
+      transparent: false,
+      side: THREE.FrontSide,
+      shininess: 100,
+      specular: 0x444444
     });
+    
+    console.log('Material created with vertexColors:', mat.vertexColors);
     
     this.mesh = new THREE.InstancedMesh(geom, mat, count);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     
-    // Subtle glow mesh (much more transparent)
-    const glowGeom = new THREE.SphereGeometry(0.6, 6, 4);
+    // Outer glow mesh - Enhanced sci-fi glow effect
+    const glowGeom = new THREE.SphereGeometry(0.8, 8, 6);
     const glowMat = new THREE.MeshBasicMaterial({
       transparent: true,
-      opacity: 0.1, // Much more subtle
+      opacity: 0.4,
       vertexColors: true,
       blending: THREE.AdditiveBlending,
-      side: THREE.BackSide
+      side: THREE.BackSide,
+      depthWrite: false
     });
     
     this.glowMesh = new THREE.InstancedMesh(glowGeom, glowMat, count);
     this.glowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     
-    // Color attributes
-    this.colors = new Float32Array(count * 3);
-    this.glowColors = new Float32Array(count * 3);
-    
-    const colorAttr = new THREE.InstancedBufferAttribute(this.colors, 3);
-    const glowColorAttr = new THREE.InstancedBufferAttribute(this.glowColors, 3);
-    
-    this.mesh.geometry.setAttribute('instanceColor', colorAttr);
-    this.glowMesh.geometry.setAttribute('instanceColor', glowColorAttr);
+    console.log('InstancedMesh objects created');
     
     this.recolor(species);
   }
   
   recolor(species: Uint8Array) {
-    const c = new THREE.Color();
+    console.log('=== RECOLORING WITH SPECIES COLORS ===');
+    console.log('Species array:', Array.from(species));
+    
+    // Use actual species colors from SPECIES map
     for (let i = 0; i < this.count; i++) {
-      const info = SPECIES[species[i] as Species];
-      c.setHex(info.color);
+      const speciesType = species[i] as Species;
+      const speciesInfo = SPECIES[speciesType];
       
-      // Main atom color (bright and solid)
-      this.colors[3*i+0] = c.r;
-      this.colors[3*i+1] = c.g; 
-      this.colors[3*i+2] = c.b;
+      // Convert hex color to THREE.Color
+      const color = new THREE.Color(speciesInfo.color);
       
-      // Glow color (very subtle)
-      this.glowColors[3*i+0] = c.r * 0.3;
-      this.glowColors[3*i+1] = c.g * 0.3;
-      this.glowColors[3*i+2] = c.b * 0.3;
+      console.log(`Atom ${i}: Species ${speciesType} (${speciesInfo.name}), Color: #${speciesInfo.color.toString(16)}, RGB:`, color);
+      
+      // Set main atom color using species color
+      this.mesh.setColorAt(i, color);
+      
+      // Set glow color (brighter and more intense for sci-fi effect)
+      const glowColor = color.clone().multiplyScalar(1.5); // Brighter glow
+      this.glowMesh.setColorAt(i, glowColor);
     }
     
-    (this.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
-    (this.glowMesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
+    // Mark instance colors as needing update
+    if (this.mesh.instanceColor) {
+      this.mesh.instanceColor.needsUpdate = true;
+    }
+    if (this.glowMesh.instanceColor) {
+      this.glowMesh.instanceColor.needsUpdate = true;
+    }
+    
+    console.log('Colors set from SPECIES map using setColorAt method');
   }
   
   updateFromArray(pos: Float32Array, species: Uint8Array, visualScale: number, vel?: Float32Array) {
+    // Only recolor if species have changed (for performance)
+    // this.recolor(species); // Removed frequent recoloring
+    
     for (let i = 0; i < this.count; i++) {
       const ix = 3*i;
-      const info = SPECIES[species[i] as Species];
+      const speciesType = species[i] as Species;
+      const info = SPECIES[speciesType];
       
       // Update positions
       this.dummy.position.set(pos[ix], pos[ix+1], pos[ix+2]);
       
-      // Basic scaling
+      // Main atom scaling based on actual species radius
       const scale = (info.radius * visualScale / 0.5);
       this.dummy.scale.setScalar(scale);
       this.dummy.updateMatrix();
-      
-      // Update main mesh
       this.mesh.setMatrixAt(i, this.dummy.matrix);
       
-      // Glow mesh slightly larger but much more subtle
-      this.dummy.scale.setScalar(scale * 1.1);
+      // Outer glow - larger for better sci-fi effect
+      this.dummy.scale.setScalar(scale * 1.8);
       this.dummy.updateMatrix();
       this.glowMesh.setMatrixAt(i, this.dummy.matrix);
-      
-      // Very subtle energy-based glow
-      if (vel) {
-        const vx = vel[ix], vy = vel[ix+1], vz = vel[ix+2];
-        const energy = Math.sqrt(vx*vx + vy*vy + vz*vz);
-        const intensity = Math.min(energy * 0.1, 0.2); // Much more subtle
-        
-        const baseColor = new THREE.Color(info.color);
-        this.glowColors[3*i+0] = baseColor.r * intensity;
-        this.glowColors[3*i+1] = baseColor.g * intensity;
-        this.glowColors[3*i+2] = baseColor.b * intensity;
-      }
     }
     
     this.mesh.instanceMatrix.needsUpdate = true;
     this.glowMesh.instanceMatrix.needsUpdate = true;
-    
-    if (vel) {
-      (this.glowMesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute).needsUpdate = true;
-    }
   }
 }

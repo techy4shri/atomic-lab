@@ -35,22 +35,19 @@ export function createScene() {
   const texture = new THREE.CanvasTexture(canvas);
   scene.background = texture;
   
-  // Enhanced lighting for sci-fi effect
-  const ambient = new THREE.AmbientLight(0x001122, 0.4);
+  // Enhanced lighting for better color visibility
+  const ambient = new THREE.AmbientLight(0xffffff, 0.8); // Brighter ambient light
   scene.add(ambient);
   
-  // Multiple colored directional lights
-  const light1 = new THREE.DirectionalLight(0x00ffff, 1.2);
+  // Main directional light - bright white
+  const light1 = new THREE.DirectionalLight(0xffffff, 1.5);
   light1.position.set(5, 8, 5);
   scene.add(light1);
   
-  const light2 = new THREE.DirectionalLight(0xff00ff, 0.8);
+  // Fill light to reduce shadows
+  const light2 = new THREE.DirectionalLight(0xffffff, 0.8);
   light2.position.set(-5, 3, -5);
   scene.add(light2);
-  
-  const light3 = new THREE.DirectionalLight(0x00ff88, 0.6);
-  light3.position.set(0, -5, 8);
-  scene.add(light3);
   
   // Dramatic fog for depth
   scene.fog = new THREE.Fog(0x020408, 15, 60);
@@ -78,6 +75,9 @@ export function addBoxWire(scene: THREE.Scene, half=8) {
     color: 0x00ffff, 
     transparent: true, 
     opacity: 0.8,
+    linewidth: 2,
+    blending: THREE.AdditiveBlending
+
   });
   
   const wireframe = new THREE.LineSegments(edges, material);
