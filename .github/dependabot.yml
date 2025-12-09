@@ -9,3 +9,5 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    assignee: ["techy4shri", "dependabot"]
+    commit-message: "dependency security updates"
