@@ -6,7 +6,6 @@ updates:
       interval: "weekly"
     assignees:                      # key must be 'assignees' (plural)
       - "techy4shri"
-      - "dependabot"
     commit-message:
       prefix: "deps"                # must be an object, not a string
       include: "scope"              # optional: shows package name in commit title
